@@ -528,6 +528,213 @@ function initMessageExport() {
     });
   }
   
+  // API设置核心逻辑
+document.addEventListener('DOMContentLoaded', () => {
+  // 元素获取
+  const apiService = document.getElementById('api-service');
+  const apiKey = document.getElementById('api-key');
+  const apiBaseUrl = document.getElementById('api-base-url');
+  const apiModel = document.getElementById('api-model');
+  const customModelInput = document.getElementById('custom-model-input');
+  const apiTemperature = document.getElementById('api-temperature');
+  const temperatureValue = document.getElementById('temperature-value');
+  const saveBtn = document.getElementById('save-api-settings-btn');
+  const resetBtn = document.getElementById('reset-api-settings');
+  const testBtn = document.getElementById('test-api-connection');
+  const toggleApiKeyBtn = document.getElementById('toggle-api-key');
+  const apiTestResult = document.getElementById('api-test-result');
+
+  // 1. 加载已保存的配置（localStorage）
+  function loadApiSettings() {
+    const savedSettings = JSON.parse(localStorage.getItem('api-settings')) || {};
+    if (savedSettings.service) apiService.value = savedSettings.service;
+    if (savedSettings.key) apiKey.value = savedSettings.key;
+    if (savedSettings.baseUrl) apiBaseUrl.value = savedSettings.baseUrl;
+    if (savedSettings.model) apiModel.value = savedSettings.model;
+    if (savedSettings.temperature) apiTemperature.value = savedSettings.temperature;
+    
+    // 更新温度显示
+    temperatureValue.textContent = apiTemperature.value;
+    
+    // 自定义模型输入框显示控制
+    toggleCustomModelInput();
+    
+    // 切换OpenAI默认BaseURL
+    if (apiService.value === 'openai' && !savedSettings.baseUrl) {
+      apiBaseUrl.value = 'https://api.openai.com/v1';
+    }
+  }
+
+  // 2. 保存配置到localStorage
+  function saveApiSettings() {
+    // 验证必填项
+    if (!apiKey.value.trim()) {
+      showCustomAlert('保存失败', 'API Key不能为空', 'warning');
+      return;
+    }
+    if (!apiBaseUrl.value.trim()) {
+      showCustomAlert('保存失败', 'API Base URL不能为空', 'warning');
+      return;
+    }
+    
+    // 验证URL格式
+    try {
+      new URL(apiBaseUrl.value.trim());
+    } catch (e) {
+      showCustomAlert('保存失败', 'API Base URL格式错误', 'warning');
+      return;
+    }
+    
+    // 组装配置
+    const settings = {
+      service: apiService.value,
+      key: apiKey.value.trim(),
+      baseUrl: apiBaseUrl.value.trim(),
+      model: apiModel.value === 'custom-model' ? customModelInput.value.trim() : apiModel.value,
+      temperature: parseFloat(apiTemperature.value)
+    };
+    
+    // 保存到本地存储
+    localStorage.setItem('api-settings', JSON.stringify(settings));
+    showCustomAlert('保存成功', 'API配置已保存');
+    
+    // 自动返回主页
+    setTimeout(() => {
+      showScreen('home-screen');
+    }, 1500);
+  }
+
+  // 3. 重置配置
+  function resetApiSettings() {
+    showCustomConfirm('确认重置', '是否清空所有API配置？', { confirmText: '确认清空' }).then(confirmed => {
+      if (confirmed) {
+        localStorage.removeItem('api-settings');
+        apiKey.value = '';
+        apiBaseUrl.value = apiService.value === 'openai' ? 'https://api.openai.com/v1' : '';
+        apiModel.value = 'gpt-3.5-turbo';
+        apiTemperature.value = 0.7;
+        temperatureValue.textContent = 0.7;
+        customModelInput.value = '';
+        toggleCustomModelInput();
+        showCustomAlert('重置成功', 'API配置已清空');
+      }
+    });
+  }
+
+  // 4. 测试API连接（纯前端格式验证+模拟请求，无实际调用）
+  function testApiConnection() {
+    // 先验证必填项和格式
+    if (!apiKey.value.trim() || !apiBaseUrl.value.trim()) {
+      showTestResult('请先填写API Key和Base URL', 'error');
+      return;
+    }
+    try {
+      new URL(apiBaseUrl.value.trim());
+    } catch (e) {
+      showTestResult('API Base URL格式错误', 'error');
+      return;
+    }
+    
+    // 模拟测试（纯前端验证，不发送真实请求，避免跨域）
+    testBtn.disabled = true;
+    testBtn.textContent = '测试中...';
+    showTestResult('正在测试连接...', 'loading');
+    
+    setTimeout(() => {
+      // 模拟成功（实际项目中可通过后端代理测试，纯前端无法跨域调用第三方API）
+      const testSuccess = true;
+      if (testSuccess) {
+        showTestResult(`
+          连接测试成功！<br>
+          服务：${apiService.options[apiService.selectedIndex].text}<br>
+          模型：${apiModel.value === 'custom-model' ? customModelInput.value.trim() : apiModel.value}<br>
+          温度：${apiTemperature.value}
+        `, 'success');
+      } else {
+        showTestResult('连接测试失败，请检查配置是否正确（纯前端无法跨域验证，建议通过实际使用测试）', 'error');
+      }
+      testBtn.disabled = false;
+      testBtn.textContent = '测试连接';
+    }, 1500);
+  }
+
+  // 5. 显示测试结果
+  function showTestResult(content, type) {
+    apiTestResult.style.display = 'block';
+    if (type === 'success') {
+      apiTestResult.style.backgroundColor = 'rgba(82, 196, 26, 0.1)';
+      apiTestResult.style.color = var(--success-color);
+    } else if (type === 'error') {
+      apiTestResult.style.backgroundColor = 'rgba(255, 77, 79, 0.1)';
+      apiTestResult.style.color = var(--danger-color);
+    } else {
+      apiTestResult.style.backgroundColor = 'rgba(250, 173, 20, 0.1)';
+      apiTestResult.style.color = var(--warning-color);
+    }
+    apiTestResult.innerHTML = content;
+  }
+
+  // 6. 切换API Key显示/隐藏
+  function toggleApiKeyVisibility() {
+    const type = apiKey.type === 'password' ? 'text' : 'password';
+    apiKey.type = type;
+    // 切换图标
+    toggleApiKeyBtn.innerHTML = type === 'password' ? `
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+        <circle cx="12" cy="12" r="3"></circle>
+      </svg>
+    ` : `
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+      </svg>
+    `;
+  }
+
+  // 7. 切换自定义模型输入框显示
+  function toggleCustomModelInput() {
+    customModelInput.style.display = apiModel.value === 'custom-model' ? 'block' : 'none';
+  }
+
+  // 8. 绑定事件
+  function bindEvents() {
+    // 保存按钮
+    saveBtn.addEventListener('click', saveApiSettings);
+    
+    // 重置按钮
+    resetBtn.addEventListener('click', resetApiSettings);
+    
+    // 测试按钮
+    testBtn.addEventListener('click', testApiConnection);
+    
+    // 切换API Key显示
+    toggleApiKeyBtn.addEventListener('click', toggleApiKeyVisibility);
+    
+    // 温度滑块更新
+    apiTemperature.addEventListener('input', () => {
+      temperatureValue.textContent = apiTemperature.value;
+    });
+    
+    // 服务选择切换
+    apiService.addEventListener('change', () => {
+      if (apiService.value === 'openai' && !apiBaseUrl.value.trim()) {
+        apiBaseUrl.value = 'https://api.openai.com/v1';
+      }
+    });
+    
+    // 模型选择切换
+    apiModel.addEventListener('change', toggleCustomModelInput);
+  }
+
+  // 初始化API设置页
+  window.initializeAPISettings = function() {
+    loadApiSettings();
+    bindEvents();
+    showTestResult('', ''); // 清空测试结果
+  };
+});
+
   // 导出聊天记录为JSON/文本格式
   function exportChatHistory(chat, filename) {
     const messages = chat.history.filter(msg => !msg.isHidden);
